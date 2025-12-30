@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxRadar_用户反馈分析Agent</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 240px;
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --text-main: #111827;
+            --text-secondary: #6b7280;
+            --border-subtle: #e5e7eb;
+            --bg-canvas: #f9fafb;
+            --bg-surface: #ffffff;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --radius-md: 12px;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --accent-highlight: #fef08a;
+            --accent-active: #fff7ed;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            color: var(--text-main);
+            background-color: var(--bg-canvas);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo-text {
+            font-family: var(--font-sans);
+            letter-spacing: 0.5px;
+            color: #003366;
+            font-size: 22px;
+        }
+        .logo .logo-icon { width: 40px; height: 40px; color: #003366; }
+        .logo .text-voxradar { font-weight: 700; }
+        .logo svg { transform-box: view-box; }
+        .logo .sweep { transform-box: view-box; transform-origin: 50% 50%; animation: sweepRotate 4s linear infinite; }
+        .logo .blip { animation: blip 2.6s ease-in-out infinite; }
+        .logo .blip.b2 { animation-delay: .5s; }
+        .logo .blip.b3 { animation-delay: .9s; }
+        .logo .blip.b4 { animation-delay: 1.3s; }
+        .logo .ring1 { animation: ringPulse 3.2s ease-in-out infinite; }
+        .logo .ring2 { animation: ringPulse 3.2s ease-in-out infinite .3s; }
+        .logo .ring3 { animation: ringPulse 3.2s ease-in-out infinite .6s; }
+        .logo .pivot { transform-box: fill-box; transform-origin: 50% 50%; animation: pivotPulse 1.6s ease-in-out infinite; }
+        
+        .logo .stream-row.stream-1 { animation: flowTop 3s steps(5) infinite; }
+        .logo .stream-row.stream-2 { animation: flowMid 3s steps(5) infinite 0.15s; }
+        .logo .stream-row.stream-3 { animation: flowBottom 3s steps(5) infinite 0.3s; }
+        .logo .diagonal.diag-1 { animation: flowDiag1 3.2s steps(5) infinite 0.25s; }
+        .logo .diagonal.diag-2 { animation: flowDiag2 3.2s steps(5) infinite 0.35s; }
+        .logo .core { animation: pulseCore 3.2s ease-in-out infinite; }
+        
+        .nav-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f3f4f6;
+            color: var(--text-main);
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            margin: 24px 0 8px 12px;
+        }
+
+        /* --- Main Canvas --- */
+        .main-canvas {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Top Input Area --- */
+        .prompt-section {
+            padding: 32px 32px 20px;
+            background: var(--bg-canvas);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            flex-shrink: 0;
+            border-bottom: none;
+        }
+
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            background: var(--bg-surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-subtle);
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        
+        .input-wrapper:focus-within {
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2), var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+        
+        .input-bar {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .input-bar .input-wrapper {
+            width: auto;
+            max-width: none;
+            flex: 0 0 80%;
+            min-width: 0;
+        }
+
+        textarea {
+            flex: 1;
+            height: 48px;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            font-size: 15px;
+            resize: none;
+            font-family: inherit;
+            outline: none;
+            color: var(--text-main);
+        }
+
+        .action-btn {
+            position: static;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform .18s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow .18s cubic-bezier(0.2, 0.7, 0.3, 1), background-color .18s ease;
+            flex-shrink: 0;
+            margin-left: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            will-change: transform;
+            box-shadow: var(--shadow-sm);
+            height: 48px;
+        }
+
+        .action-btn:not(.loading):hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: var(--shadow-md);
+        }
+        .action-btn:active {
+            transform: translateY(0) scale(0.997);
+            box-shadow: var(--shadow-sm);
+        }
+        .action-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.25), var(--shadow-md);
+        }
+        
+        .action-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .action-btn.loading {
+            pointer-events: none;
+        }
+        .action-btn.success {
+            background: #22c55e;
+        }
+        .btn-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            display: none;
+            animation: spin 0.8s linear infinite;
+        }
+        .action-btn.loading .btn-spinner {
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- Query Status Tracker (Stepper) --- */
+        .query-tracker {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            min-height: 24px;
+        }
+        .status-fab {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 99px;
+            box-shadow: var(--shadow-md);
+            padding: 8px 16px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .status-dot.ready { background: #22c55e; }
+        .status-dot.run { background: var(--primary-color); animation: pulse 1s infinite; }
+        .status-dot.err { background: #ef4444; }
+
+        .query-tag {
+            font-size: 13px;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 0;
+            border: none;
+            opacity: 1;
+            transform: none;
+            animation: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .query-tag.processing {
+            color: var(--primary-color);
+            font-weight: 600;
+            border: none;
+            background: transparent;
+        }
+
+        .query-tag .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e5e7eb;
+        }
+
+        .query-tag.processing .status-dot {
+            background: var(--primary-color);
+            animation: pulse 1s infinite;
+        }
+
+        /* --- Content Grid (Split View) --- */
+        .content-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 65% 35%;
+            gap: 24px;
+            background: transparent;
+            overflow: hidden;
+            opacity: 0.3;
+            transition: opacity 0.5s;
+            max-width: 100%;
+            margin: 0;
+            padding: 0 48px 32px;
+        }
+
+        .content-grid.active {
+            opacity: 1;
+        }
+
+        /* Grid cell wrapper for external titles + panels */
+        .grid-cell {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* External section titles (outside the glass panel) */
+        .section-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 0 0 12px 0;
+            padding-left: 2px;
+            display: block;
+            text-align: left;
+        }
+
+        /* Common Panel Styles */
+        .panel {
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: var(--radius-md);
+            position: relative;
+            transition: box-shadow .3s ease;
+            height: 100%;
+        }
+        
+        /* Left Column: Insight Report (White Card) */
+        .grid-cell:first-child .panel {
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Right Column: Raw Data (Transparent Container) */
+        .grid-cell:last-child .panel {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .panel-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+        }
+        
+        /* Right Column Header Styling */
+        .grid-cell:last-child .panel-header {
+            background: transparent;
+            border-bottom: none;
+            padding: 0 0 16px 0;
+        }
+        .grid-cell:last-child .panel-title {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .panel-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0,0,0,0.1) transparent;
+        }
+
+        /* Output 1: Report Typography */
+        .report-content {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 32px 40px;
+            color: var(--text-main);
+        }
+        
+        .report-block h1 { font-size: 24px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.02em; color: var(--text-main); }
+        .report-block h2 { font-size: 18px; font-weight: 600; margin-top: 32px; margin-bottom: 12px; color: var(--text-main); letter-spacing: -0.01em; }
+        .report-block h3 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 10px; color: #374151; }
+        .report-block p { font-size: 15px; line-height: 1.6; margin-bottom: 16px; color: #374151; }
+        .report-block ul, .report-block ol { margin-bottom: 20px; padding-left: 24px; color: #374151; }
+        .report-block li { margin-bottom: 8px; line-height: 1.6; }
+
+        /* The Soul of the Design: Interactive Links */
+        .interactive-point {
+            background: linear-gradient(120deg, transparent 0%, transparent 100%);
+            border-bottom: 1px dashed #9ca3af;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0 2px;
+        }
+
+        .interactive-point:hover {
+            background: var(--accent-highlight);
+            border-bottom-style: solid;
+            color: #000;
+        }
+
+        /* Output 2: Evidence Stream */
+        .evidence-stream {
+            padding: 0 4px 0 0;
+            background: transparent;
+        }
+
+        .evidence-card {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .evidence-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: #d1d5db;
+        }
+
+        /* Highlight Logic */
+        .evidence-card.highlight {
+            border-color: #f59e0b;
+            background: #fffbeb;
+            box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.2);
+            transform: scale(1.02);
+            z-index: 10;
+        }
+
+        .evidence-card.dimmed {
+            opacity: 0.5;
+            filter: grayscale(0.8);
+        }
+
+        .card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .source-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: 11px;
+        }
+
+        .source-xiaohongshu { background: #ffe4e6; color: #e11d48; }
+        .source-internal { background: #dbeafe; color: #2563eb; }
+        .source-zhihu { background: #e0f2fe; color: #0284c7; }
+
+        .card-content {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #374151;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .evidence-card.highlight .card-content {
+            -webkit-line-clamp: unset; /* Expand when highlighted */
+        }
+
+        .card-footer {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-link {
+            font-size: 11px;
+            color: var(--primary-color);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .btn-link:hover { text-decoration: underline; }
+
+        /* Footer removed in initial version */
+
+        /* Animations */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.1); }
+            100% { opacity: 0.4; transform: scale(0.8); }
+        }
+        
+        @keyframes flowTop {
+            0% { transform: translate(0,0); opacity: 0.6; }
+            80% { transform: translate(8px,2px); opacity: 1; }
+            100% { transform: translate(10px,3px); opacity: 0; }
+        }
+        @keyframes flowMid {
+            0% { transform: translate(0,0); opacity: 0.6; }
+            80% { transform: translate(9px,0); opacity: 1; }
+            100% { transform: translate(11px,0); opacity: 0; }
+        }
+        @keyframes flowBottom {
+            0% { transform: translate(0,0); opacity: 0.6; }
+            80% { transform: translate(10px,-2px); opacity: 1; }
+            100% { transform: translate(12px,-3px); opacity: 0; }
+        }
+        @keyframes flowDiag1 {
+            0% { transform: translate(0,0); opacity: 0.6; }
+            80% { transform: translate(8px,1px); opacity: 1; }
+            100% { transform: translate(10px,2px); opacity: 0; }
+        }
+        @keyframes flowDiag2 {
+            0% { transform: translate(0,0); opacity: 0.6; }
+            80% { transform: translate(8px,-1px); opacity: 1; }
+            100% { transform: translate(10px,-2px); opacity: 0; }
+        }
+        
+        @keyframes pulseCore {
+            0% { opacity: 0.9; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+        @keyframes sweepRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes blip {
+            0% { opacity: 0; }
+            35% { opacity: .25; }
+            50% { opacity: 1; }
+            65% { opacity: .25; }
+            100% { opacity: 0; }
+        }
+        @keyframes ringPulse {
+            0% { opacity: .8; }
+            50% { opacity: 1; }
+            100% { opacity: .8; }
+        }
+        @keyframes pivotPulse {
+            0% { transform: scale(1); opacity: .85; }
+            50% { transform: scale(1.25); opacity: 1; }
+            100% { transform: scale(1); opacity: .85; }
+        }
+
+        /* Initial State Helper */
+        .hidden { display: none; }
+        
+    </style>
+</head>
+<body>
+
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M90 50 A40 40 0 1 0 25 82" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
+                <path d="M75 50 A25 25 0 1 0 35 70" stroke="currentColor" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+                <circle cx="50" cy="50" r="8" fill="currentColor" />
+                <line x1="50" y1="50" x2="85" y2="15" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+            </svg>
+            <div class="logo-text"><span class="text-voxradar">VoxRadar</span></div>
+        </div>
+
+        <div class="nav-item active">新建调研</div>
+        <div class="nav-item">历史报告</div>
+        
+        <div class="nav-section-title">数据库</div>
+        <div class="nav-item">用户反馈库</div>
+        <div class="nav-item">竞品情报库</div>
+
+        <div style="margin-top: auto;">
+            <div class="nav-item" id="sidebarSettingsBtn">设置</div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-canvas">
+        
+        <!-- Top Input & Status -->
+        <header class="prompt-section">
+            <div class="input-bar">
+                <div class="input-wrapper">
+                    <textarea id="promptInput" placeholder="请输入想要进行用户调研的产品名称~"></textarea>
+                </div>
+                <button id="analyzeBtn" class="action-btn" onclick="startAnalysis()">
+                    <span class="btn-spinner" aria-hidden="true"></span>
+                    <span class="btn-label">开始深度分析</span>
+                </button>
+            </div>
+            
+            <!-- Agent Logic Visualization -->
+            <div class="query-tracker" id="queryTracker">
+                <!-- Tags will be injected here via JS -->
+            </div>
+        </header>
+
+        <!-- Split View: Report vs Evidence -->
+        <div class="content-grid" id="mainContent">
+            
+            <!-- Output 1: Insight Report -->
+            <div class="grid-cell">
+                <div class="section-title">用户反馈报告</div>
+                <section class="panel">
+                    <div class="panel-content">
+                        <div class="report-content" id="reportBody"></div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Output 2: Raw Evidence -->
+            <div class="grid-cell">
+                <div class="section-title">原始数据</div>
+                <section class="panel">
+                    <div class="panel-content evidence-stream">
+                        <div class="section-title">帖子（contents）</div>
+                        <div id="evidencePosts"></div>
+                        <div class="section-title" style="margin-top:14px">评论（comments）</div>
+                        <div id="evidenceComments"></div>
+                    </div>
+                </section>
+            </div>
+
+        </div>
+
+        
+    </main>
+    <!-- Floating Status Bar (Bottom-Right) -->
+    <div class="status-fab">
+        <span id="statusDot" class="status-dot ready"></span>
+        <span id="statusText" class="status-text status-live">就绪</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+
+        // Core Functions
+        const input = document.getElementById('promptInput');
+        const tracker = document.getElementById('queryTracker');
+        const contentGrid = document.getElementById('mainContent');
+        const reportBody = document.getElementById('reportBody');
+        const evidenceList = document.getElementById('evidenceList');
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        let API_BASE = '';
+        let WS_BASE = '';
+        async function resolveApiBase(){
+            const origin = window.location.origin;
+            if (origin && origin.startsWith('http')) {
+                try{
+                    const ctrl = new AbortController();
+                    const t = setTimeout(()=>ctrl.abort(), 1000);
+                    const r = await fetch(origin.replace(/\/$/,'') + '/api/health', { signal: ctrl.signal });
+                    clearTimeout(t);
+                    if (r.ok){
+                        const base = origin.replace(/\/$/,'') + '/api';
+                        API_BASE = base;
+                        try {
+                            const u = new URL(origin);
+                            WS_BASE = (u.protocol === 'https:' ? 'wss' : 'ws') + '://' + u.host + '/api';
+                        } catch(_) {
+                            WS_BASE = (origin.startsWith('https') ? 'wss' : 'ws') + '://' + origin.replace(/^https?:\/\//, '').replace(/\/$/,'') + '/api';
+                        }
+                        return true;
+                    }
+                }catch(e){}
+            }
+            const hosts = ['localhost','127.0.0.1'];
+            const ports = [8094, 8090, 8095, 8093, 8092, 8091];
+            for (const h of hosts){
+                for (const p of ports){
+                    const base = `http://${h}:${p}/api`;
+                    try{
+                        const ctrl = new AbortController();
+                        const t = setTimeout(()=>ctrl.abort(), 3000);
+                        const r = await fetch(`${base}/health`, { signal: ctrl.signal });
+                        clearTimeout(t);
+                        if (r.ok){
+                            API_BASE = base;
+                            WS_BASE = `ws://${h}:${p}/api`;
+                            return true;
+                        }
+                    }catch(e){}
+                    try{
+                        const ctrl2 = new AbortController();
+                        const t2 = setTimeout(()=>ctrl2.abort(), 3000);
+                        const r2 = await fetch(`${base}/settings/lm`, { signal: ctrl2.signal });
+                        clearTimeout(t2);
+                        if (r2.ok){
+                            API_BASE = base;
+                            WS_BASE = `ws://${h}:${p}/api`;
+                            return true;
+                        }
+                    }catch(e){}
+                }
+            }
+            API_BASE = 'http://localhost:8090/api';
+            WS_BASE = 'ws://localhost:8090/api';
+            return true;
+        }
+        let logsSocket = null;
+        let statusSocket = null;
+        let lastReportPath = null;
+        let latestEvidencePathComments = null;
+        let latestEvidencePathContents = null;
+        let hasActiveSession = false; // 仅在用户点击“开始深度分析”后置为 true
+        let backendRunning = false;   // 由状态WS驱动
+        let logsPollTimer = null;
+        let statusPollTimer = null;
+        let wsRetry = { logs: 0, status: 0 };
+        const steps = [
+            { key: 'data_pipeline', label: '数据获取与整理', state: 'waiting' },
+            { key: 'report', label: '生成报告', state: 'waiting' },
+            { key: 'done', label: '完成', state: 'waiting' },
+        ];
+        let etaInfo = { startTs: null, itemsDone: 0, itemsTotal: null };
+        let currentStage = '等待';
+        let progressMsgState = { lastNumericTs: 0 };
+
+        function renderStepper() {
+            const grid = document.querySelector('.query-tracker');
+            grid.innerHTML = '';
+            steps.forEach(s => {
+                const tag = document.createElement('div');
+                tag.className = 'query-tag ' + (s.state === 'processing' ? 'processing' : '');
+                let dotHtml = '';
+                if (s.state === 'completed') {
+                    dotHtml = `<div class="status-dot" style="background:#22c55e"></div>`;
+                } else if (s.state === 'processing') {
+                    dotHtml = `<div class="status-dot"></div>`; // animated via CSS
+                } else {
+                    dotHtml = `<div class="status-dot" style="background:#94a3b8"></div>`;
+                }
+                tag.innerHTML = `${dotHtml} ${s.label}`;
+                grid.appendChild(tag);
+            });
+        }
+
+        function setStepState(key, state) {
+            const s = steps.find(x => x.key === key);
+            if (!s) return;
+            s.state = state;
+            renderStepper();
+        }
+
+        function setETA(doneInc) {
+            const now = Date.now();
+            if (!etaInfo.startTs) etaInfo.startTs = now;
+            if (typeof doneInc === 'number') etaInfo.itemsDone += doneInc;
+            const footer = document.getElementById('statusText');
+            if (etaInfo.itemsTotal && etaInfo.itemsDone > 0) {
+                const elapsedMin = (now - etaInfo.startTs) / 60000;
+                const rate = etaInfo.itemsDone / Math.max(elapsedMin, 0.1);
+                const remaining = Math.max(etaInfo.itemsTotal - etaInfo.itemsDone, 0);
+                const etaMin = remaining / Math.max(rate, 0.01);
+                const pct = Math.min(100, Math.round((etaInfo.itemsDone / Math.max(etaInfo.itemsTotal, 1)) * 100));
+                const text = `正在分析中 · 阶段：${currentStage} · 进度 <span class="status-digit">${pct}</span>% · 已处理 <span class="status-digit">${etaInfo.itemsDone}</span>/<span class="status-digit">${etaInfo.itemsTotal}</span> · 预计剩余 <span class="status-digit">${etaMin.toFixed(1)}</span> 分钟`;
+                footer.innerHTML = text;
+                footer.classList.add('status-live');
+                progressMsgState.lastNumericTs = now;
+                const digits = footer.querySelectorAll('.status-digit');
+                digits.forEach(d => { d.classList.add('flow'); });
+                setTimeout(() => { digits.forEach(d => d.classList.remove('flow')); }, 500);
+            }
+        }
+
+        function updateStatusRunning() {
+            const now = Date.now();
+            const footer = document.getElementById('statusText');
+            // 若最近2秒内刚显示了带数量的文本，则保持，不要覆盖
+            if (now - progressMsgState.lastNumericTs < 2000 && etaInfo.itemsTotal) return;
+            footer.innerHTML = `正在分析中 · 阶段：${currentStage}`;
+            footer.classList.add('status-live');
+            if (statusDot) {
+                statusDot.className = 'status-dot run';
+            }
+        }
+
+        function handleStatusPayload(s) {
+            try {
+                if (s.status === 'running') {
+                    backendRunning = true;
+                    if (hasActiveSession) {
+                        updateStatusRunning();
+                        const dp = steps.find(x => x.key === 'data_pipeline');
+                        if (dp && dp.state === 'waiting') setStepState('data_pipeline', 'processing');
+                    }
+                } else if (s.status === 'idle') {
+                    backendRunning = false;
+                    if (hasActiveSession) {
+                        if (lastReportPath) {
+                            statusText.innerText = "分析完成";
+                        } else {
+                            statusText.innerText = "任务结束";
+                        }
+                    } else {
+                        statusText.innerText = "就绪";
+                    }
+                    if (statusDot) {
+                        statusDot.className = 'status-dot ready';
+                    }
+                } else if (s.status === 'error') {
+                    backendRunning = false;
+                    if (hasActiveSession) {
+                        statusText.innerText = "任务失败";
+                    }
+                    if (statusDot) {
+                        statusDot.className = 'status-dot err';
+                    }
+                }
+            } catch(e){}
+        }
+
+        function processLogMessage(msg) {
+            try {
+                if (msg.includes('[EVENT]')) {
+                    try {
+                        const jsonStr = msg.split('[EVENT]').pop().trim();
+                        const ev = JSON.parse(jsonStr);
+                        if (!hasActiveSession) return;
+                        if (ev.stage === 'plan' && ev.total_comments) {
+                            etaInfo.itemsTotal = ev.total_comments;
+                        }
+                        if (ev.stage === 'crawl') {
+                            if (ev.type === 'notes') {
+                                if (ev.status === 'start') {
+                                    setStepState('data_pipeline', 'processing');
+                                    currentStage = '数据获取与整理';
+                                    try {
+                                        const postsWrap = document.getElementById('evidencePosts');
+                                        const commentsWrap = document.getElementById('evidenceComments');
+                                        if (postsWrap) postsWrap.innerHTML = '';
+                                        if (commentsWrap) commentsWrap.innerHTML = '';
+                                    } catch(_) {}
+                                    const badge = document.getElementById('evidenceCount');
+                                    if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+                                } else if (ev.status === 'end') {
+                                    setStepState('data_pipeline', 'completed');
+                                    if (backendRunning || hasActiveSession) {
+                                        tryLoadEvidenceForSession(3);
+                                    }
+                                    setStepState('report', 'processing');
+                                    currentStage = '生成报告';
+                                }
+                            } else {
+                                setStepState('data_pipeline', 'processing');
+                                setETA(ev.count);
+                            }
+                        }
+                        if (ev.stage === 'write_jsonl') {
+                            setStepState('data_pipeline', 'processing');
+                            if (ev.file === 'comments.jsonl' && ev.path) {
+                                latestEvidencePathComments = String(ev.path).replace(/^.*data[\\/]/, '').replace(/\\/g,'/');
+                            }
+                            if (ev.file === 'contents.jsonl' && ev.path) {
+                                latestEvidencePathContents = String(ev.path).replace(/^.*data[\\/]/, '').replace(/\\/g,'/');
+                            }
+                        }
+                        if (ev.stage === 'report') {
+                            setStepState('report', ev.status === 'start' ? 'processing' : 'completed');
+                            if (ev.status === 'saved' && ev.path) {
+                                const p = String(ev.path).replace(/^.*data[\\/]/, "").replace(/\\/g, "/");
+                                lastReportPath = p;
+                                loadReport(p);
+                                setStepState('done', 'completed');
+                                currentStage = '完成';
+                            }
+                        }
+                    } catch(e){}
+                }
+                if (msg.includes("[AnalysisAgent] Report saved: ")) {
+                    if (!hasActiveSession) return;
+                    const p = msg.split("[AnalysisAgent] Report saved: ").pop().trim();
+                    const rel = p.replace(/^.*data[\\/]/, "").replace(/\\/g, "/");
+                    if (!lastReportPath || lastReportPath !== rel) {
+                        lastReportPath = rel; 
+                        loadReport(lastReportPath);
+                        setStepState('report', 'completed');
+                        setStepState('done', 'completed');
+                        currentStage = '完成';
+                    }
+                }
+            } catch(e){}
+        }
+
+        function startStatusPoll() {
+            try { if (statusPollTimer) clearInterval(statusPollTimer); } catch(e){}
+            statusPollTimer = setInterval(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/crawler/status`);
+                    if (r.ok) {
+                        const s = await r.json();
+                        handleStatusPayload(s);
+                    }
+                } catch(e){}
+            }, 1500);
+        }
+
+        function stopStatusPoll() {
+            try { if (statusPollTimer) clearInterval(statusPollTimer); } catch(e){}
+            statusPollTimer = null;
+        }
+
+        function startLogsPoll() {
+            try { if (logsPollTimer) clearInterval(logsPollTimer); } catch(e){}
+            logsPollTimer = setInterval(async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/crawler/logs?limit=50`);
+                    if (r.ok) {
+                        const data = await r.json();
+                        const arr = (data && data.logs) ? data.logs : [];
+                        for (const it of arr) {
+                            const msg = String(it.message||'');
+                            processLogMessage(msg);
+                        }
+                    }
+                } catch(e){}
+            }, 2000);
+        }
+
+        function stopLogsPoll() {
+            try { if (logsPollTimer) clearInterval(logsPollTimer); } catch(e){}
+            logsPollTimer = null;
+        }
+
+        async function startAnalysis() {
+            if (!API_BASE) {
+                const ok = await resolveApiBase();
+                if (!ok) { showToast('后端未连接'); return; }
+            }
+            let hasKey = true;
+            try {
+                const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/lm`);
+                const j = await r.json();
+                const masked = (j && j.api_key_masked) ? String(j.api_key_masked) : "";
+                if (!masked || masked.trim() === "") {
+                    hasKey = false;
+                }
+            } catch(e) {
+                hasKey = false;
+            }
+            if (!hasKey) {
+                showToast('未配置API KEY，将使用离线分析');
+            }
+            if(!input.value) {
+                input.value = "分析最近用户对 VoxRadar 导出功能的评价"; // Auto-fill for demo
+            }
+
+            tracker.innerHTML = '';
+            contentGrid.classList.remove('active');
+            setAnalyzeBtnState('loading', "分析中...");
+            statusText.innerText = "正在启动任务...";
+            steps.forEach(s => s.state = 'waiting');
+            renderStepper();
+            // 数据获取与整理待启动（收到运行状态或事件进入 processing）
+            setStepState('data_pipeline', 'waiting');
+
+            const payload = {
+                platform: "xhs",
+                login_type: "qrcode",
+                crawler_type: "search",
+                keywords: input.value.trim(),
+                start_page: 1,
+                enable_comments: true,
+                enable_sub_comments: false,
+                save_option: "jsonl",
+                cookies: "",
+                headless: false
+            };
+
+            fetch(`${API_BASE}/crawler/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(async (res) => {
+                if (res.status === 200) {
+                    statusText.innerText = "任务已启动，正在运行...";
+                    hasActiveSession = true;
+                    connectStatusWS();
+                    connectLogsWS();
+                    return;
+                }
+                // 400 表示已在运行，仍然连接WS展示进度
+                if (res.status === 400) {
+                    statusText.innerText = "任务已在运行，正在连接进度...";
+                    hasActiveSession = true;
+                    connectStatusWS();
+                    connectLogsWS();
+                    return;
+                }
+                // 其他错误
+                const txt = await res.text();
+                throw new Error(txt || `HTTP ${res.status}`);
+            }).catch((err) => {
+                statusText.innerText = "服务异常或不可用，请检查后端";
+                analyzeBtn.innerText = "重新分析";
+                analyzeBtn.disabled = false;
+                console.error('Start error:', err);
+            });
+        }
+
+        function connectStatusWS() {
+            try {
+                if (statusSocket) statusSocket.close();
+            } catch(e){}
+            statusSocket = new WebSocket(`${WS_BASE}/ws/status`);
+            statusSocket.onmessage = (evt) => {
+                try { handleStatusPayload(JSON.parse(evt.data)); } catch(e){}
+            };
+            statusSocket.onopen = () => {
+                wsRetry.status = 0;
+                stopStatusPoll();
+            };
+            statusSocket.onerror = () => {
+                startStatusPoll();
+            };
+            statusSocket.onclose = () => {
+                startStatusPoll();
+                wsRetry.status += 1;
+                const delay = Math.min(5000, 1000 * wsRetry.status);
+                setTimeout(() => { if (hasActiveSession) connectStatusWS(); }, delay);
+            };
+        }
+
+        function connectLogsWS() {
+            try {
+                if (logsSocket) logsSocket.close();
+            } catch(e){}
+            logsSocket = new WebSocket(`${WS_BASE}/ws/logs`);
+            logsSocket.onmessage = (evt) => {
+                try {
+                    const log = JSON.parse(evt.data);
+                    const msg = (log && log.message) ? String(log.message) : "";
+                    processLogMessage(msg);
+                } catch(e){}
+            };
+            logsSocket.onopen = () => {
+                renderStepper();
+                wsRetry.logs = 0;
+                stopLogsPoll();
+            };
+            logsSocket.onerror = () => {
+                if (hasActiveSession) startLogsPoll();
+            };
+            logsSocket.onclose = () => {
+                if (hasActiveSession) startLogsPoll();
+                wsRetry.logs += 1;
+                const delay = Math.min(5000, 1000 * wsRetry.logs);
+                setTimeout(() => { if (hasActiveSession) connectLogsWS(); }, delay);
+            };
+        }
+
+        async function loadReport(relPath) {
+            try {
+                const res = await fetch(`${API_BASE}/data/download/${encodeURIComponent(relPath)}`);
+                const text = await res.text();
+                renderReport(text);
+                contentGrid.classList.add('active');
+                setAnalyzeBtnState('success', "完成");
+                setTimeout(() => setAnalyzeBtnState('idle', "重新分析"), 1200);
+            } catch(e) {
+                statusText.innerText = "报告加载失败，尝试日志回溯...";
+                // 兜底：从最近日志中解析报告路径
+                try {
+                    const r = await fetch(`${API_BASE}/crawler/logs?limit=100`);
+                    const data = await r.json();
+                    const arr = (data && data.logs) ? data.logs : [];
+                    for (const it of arr) {
+                        const m = String(it.message||'');
+                        if (m.includes('[AnalysisAgent] Report saved: ')) {
+                            const rp = m.split('[AnalysisAgent] Report saved: ').pop().trim().replace(/^.*data[\\/]/,'').replace(/\\/g,'/');
+                            const rr = await fetch(`${API_BASE}/data/download/${encodeURIComponent(rp)}`);
+                            if (rr.ok) {
+                                const t = await rr.text();
+                                renderReport(t);
+                                setStepState('report', 'completed');
+                                setStepState('done', 'completed');
+                                setAnalyzeBtnState('success', "完成");
+                                setTimeout(() => setAnalyzeBtnState('idle', "重新分析"), 1200);
+                                break;
+                            }
+                        }
+                    }
+                } catch(ex) {}
+                setAnalyzeBtnState('idle', "重新分析");
+            }
+        }
+
+        function renderReport(mdText) {
+            const html = marked.parse(mdText || "# 用户反馈分析报告\n\n暂无内容");
+            reportBody.innerHTML = `<div class="report-block">${html}</div>`;
+        }
+        
+        function setAnalyzeBtnState(state, labelText) {
+            const btn = analyzeBtn;
+            const label = btn.querySelector('.btn-label');
+            const spinner = btn.querySelector('.btn-spinner');
+            btn.classList.remove('loading', 'success');
+            btn.disabled = false;
+            if (state === 'loading') {
+                btn.classList.add('loading');
+                btn.disabled = true;
+            } else if (state === 'success') {
+                btn.classList.add('success');
+            }
+            if (label) label.textContent = labelText || (state === 'loading' ? "分析中..." : "开始深度分析");
+        }
+
+        function getTodayStr() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth()+1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        async function tryLoadEvidenceForToday(retries = 3) {
+            const d = new Date();
+            const dd = String(d.getDate()).padStart(2, '0');
+            const monMap = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const mon = monMap[d.getMonth()];
+            const yy = String(d.getFullYear()).slice(-2);
+            const newToken = `${dd}-${mon},${mon}.${yy}`;
+            const legacyToken = getTodayStr();
+            const candidates = [
+                `xhs/jsonl/search_comments_${newToken}.jsonl`,
+                `xhs/jsonl/search_comments_${legacyToken}.jsonl`,
+                `xhs/jsonl/search_contents_${newToken}.jsonl`,
+                `xhs/jsonl/search_contents_${legacyToken}.jsonl`
+            ];
+            try {
+                let items = [];
+                for (const path of candidates) {
+                    const res = await fetch(`${API_BASE}/data/download/${encodeURIComponent(path)}`);
+                    if (!res.ok) continue;
+                    const text = await res.text();
+                    const lines = text.split('\n').filter(l => l.trim());
+                    for (const line of lines) {
+                        try {
+                            const obj = JSON.parse(line);
+                            items.push(obj);
+                        } catch(e) {}
+                    }
+                    if (items.length > 0) break;
+                }
+                if (items.length > 0) {
+                    renderEvidence(items);
+                    contentGrid.classList.add('active');
+                } else if (retries > 0) {
+                    console.log(`Evidence not found, retrying... (${retries})`);
+                    setTimeout(() => tryLoadEvidenceForToday(retries - 1), 1500);
+                }
+            } catch(e) {
+                if (retries > 0) {
+                    setTimeout(() => tryLoadEvidenceForToday(retries - 1), 1500);
+                }
+            }
+        }
+
+        async function tryLoadEvidenceForSession(retries = 3) {
+            const postsPath = latestEvidencePathContents;
+            const commentsPath = latestEvidencePathComments;
+            try {
+                let posts = [];
+                if (postsPath) {
+                    const r1 = await fetch(`${API_BASE}/data/download/${encodeURIComponent(postsPath)}`);
+                    if (r1.ok) {
+                        const t1 = await r1.text();
+                        const lines1 = t1.split('\n').filter(l => l.trim());
+                        for (const line of lines1) { try { posts.push(JSON.parse(line)); } catch(e){} }
+                    }
+                }
+                let comments = [];
+                if (commentsPath) {
+                    const r2 = await fetch(`${API_BASE}/data/download/${encodeURIComponent(commentsPath)}`);
+                    if (r2.ok) {
+                        const t2 = await r2.text();
+                        const lines2 = t2.split('\n').filter(l => l.trim());
+                        for (const line of lines2) { try { comments.push(JSON.parse(line)); } catch(e){} }
+                    }
+                }
+                if (posts.length > 0) {
+                    renderPosts(posts);
+                }
+                if (comments.length > 0) {
+                    renderComments(comments);
+                }
+                if (posts.length + comments.length > 0) {
+                    contentGrid.classList.add('active');
+                } else if (retries > 0) {
+                    setTimeout(() => tryLoadEvidenceForSession(retries - 1), 1200);
+                }
+            } catch(e) {
+                if (retries > 0) setTimeout(() => tryLoadEvidenceForSession(retries - 1), 1200);
+            }
+        }
+
+        async function runAnalysisOnly() {
+            // Function removed as per user request
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            connectStatusWS();
+            connectLogsWS();
+            renderStepper();
+        });
+
+        function renderPosts(items) {
+            const wrap = document.getElementById('evidencePosts');
+            if (!wrap) return;
+            wrap.innerHTML = items.slice(0, 100).map((it, idx) => {
+                const sourceName = it.source_name || '小红书';
+                const typeMap = { '小红书': 'xiaohongshu', 'xhs': 'xiaohongshu' };
+                const type = typeMap[sourceName] || 'xiaohongshu';
+                const title = it.title || '';
+                const desc = it.desc || '';
+                const like = typeof it.liked_count === 'number' ? it.liked_count : (parseInt(it.liked_count || it.like_count || '0', 10));
+                const date = it.time_iso || '';
+                const url = it.note_url || it.source_url || '';
+                const body = title ? `<strong>${title}</strong>${desc? ' — ' + desc : ''}` : (desc || '');
+                return `
+                    <div class="evidence-card" id="post-${idx+1}">
+                        <div class="card-meta">
+                            <span class="source-badge source-${type}">${sourceName}</span>
+                            <span>${date}</span>
+                            <span>👍 ${like}</span>
+                        </div>
+                        <div class="card-content">${body}</div>
+                        <div class="card-footer">
+                            ${url ? `<a class="btn-link" href="${url}" target="_blank">查看原文</a>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderComments(items) {
+            const wrap = document.getElementById('evidenceComments');
+            if (!wrap) return;
+            wrap.innerHTML = items.slice(0, 100).map((it, idx) => {
+                const sourceName = it.source_name || '小红书';
+                const typeMap = { '小红书': 'xiaohongshu', 'xhs': 'xiaohongshu' };
+                const type = typeMap[sourceName] || 'xiaohongshu';
+                const content = it.content_norm || it.content || '';
+                const like = typeof it.like_count === 'number' ? it.like_count : (parseInt(it.like_count || '0', 10));
+                const date = it.created_at_iso || '';
+                const url = it.note_url || it.source_url || '';
+                return `
+                    <div class="evidence-card" id="comment-${idx+1}">
+                        <div class="card-meta">
+                            <span class="source-badge source-${type}">${sourceName}</span>
+                            <span>${date}</span>
+                            <span>👍 ${like}</span>
+                        </div>
+                        <div class="card-content">${content}</div>
+                        <div class="card-footer">
+                            ${url ? `<a class="btn-link" href="${url}" target="_blank">查看原文</a>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 控制按钮：停止与重试
+        async function stopTask() {
+            try {
+                await fetch(`${API_BASE}/crawler/stop`, { method: 'POST' });
+                statusText.innerText = '已停止任务';
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerText = '重新分析';
+            } catch(e) {
+                statusText.innerText = '停止失败';
+            }
+        }
+
+        // 前端关闭自动停止任务（更可靠使用 sendBeacon）
+        function stopOnUnload() {
+            try {
+                const url = `${API_BASE}/crawler/stop`;
+                const data = new Blob([], { type: 'application/octet-stream' });
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(url, data);
+                } else {
+                    // 备选：同步 XHR（不建议），仅在不支持 sendBeacon 时使用
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', url, false);
+                    xhr.send(null);
+                }
+            } catch (e) {}
+        }
+
+        window.addEventListener('beforeunload', stopOnUnload);
+        window.addEventListener('pagehide', stopOnUnload);
+
+        
+        </script>
+    <style>
+        .settings-modal{position:fixed;inset:0;background:rgba(0,0,0,.25);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;z-index:9999;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease, visibility .18s ease}
+        .settings-panel{width:920px;max-width:94vw;background:#fff;border-radius:12px;display:flex;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.35);transform:translateY(8px) scale(.98);opacity:.96;transition:transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s}
+        .settings-modal.open{opacity:1;visibility:visible;pointer-events:auto}
+        .settings-modal.open .settings-panel{transform:translateY(0) scale(1);opacity:1}
+        .settings-side{width:260px;background:#f6f7f9;border-right:1px solid #e6e8eb;padding:16px}
+        .settings-main{flex:1;padding:18px 20px}
+        .menu-title{font-weight:600;color:#111;margin:8px 0 6px}
+        .menu-item{padding:10px 12px;border-radius:8px;cursor:pointer;color:#222}
+        .menu-item:hover{background:#eaeef3}
+      .field{margin:12px 0}
+        .label{display:block;font-size:13px;color:#444;margin-bottom:6px}
+        .input{width:100%;padding:10px;border:1px solid #d5d7da;border-radius:8px}
+        .btn-row{display:flex;gap:10px;margin-top:12px}
+        .btn{padding:10px 14px;border-radius:8px;border:none;cursor:pointer}
+        .btn-primary{background:#111;color:#fff}
+        .tip{font-size:12px;color:#666;margin-top:6px}
+        .account-header{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #eee}
+      .avatar-placeholder{width:64px;height:64px;border-radius:50%;background:#e0e7ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600}
+      .account-name{font-weight:600;font-size:16px;color:#111}
+      .account-email{font-size:13px;color:#666;margin-top:2px}
+      .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-16px);background:#111;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:transform .18s ease, opacity .18s ease;z-index:10000;font-size:13px}
+      .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    </style>
+    <div class="settings-modal" id="settingsModal">
+      <div class="settings-panel">
+        <div class="settings-side">
+          <div class="menu-title">设置</div>
+          <div class="menu-item" data-pane="account">账户设置</div>
+          <div class="menu-item" data-pane="model">模型设置</div>
+          <div class="menu-item" data-pane="key">API KEY</div>
+          <div class="menu-item" data-pane="billing">计费中心</div>
+        </div>
+        <div class="settings-main">
+          <div id="pane-account" style="display:none">
+            <div class="menu-title">账户设置</div>
+            <div class="account-header">
+              <div class="avatar-placeholder">U</div>
+              <div class="account-info-text">
+                <div class="account-name" id="displayUsername">User</div>
+                <div class="account-email" id="displayEmail">user@example.com</div>
+              </div>
+            </div>
+            <div class="field">
+              <label class="label">昵称</label>
+              <input id="accUsername" class="input" placeholder="请输入昵称"/>
+            </div>
+            <div class="field">
+              <label class="label">邮箱</label>
+              <input id="accEmail" class="input" placeholder="请输入邮箱"/>
+            </div>
+            <div class="field">
+              <label class="label">密码</label>
+              <button class="btn" style="border:1px solid #d5d7da;background:#fff;color:#333">修改密码</button>
+            </div>
+            <div class="btn-row" style="margin-top:24px">
+              <button class="btn btn-primary" id="saveAccountBtn">保存更改</button>
+            </div>
+          </div>
+          <div id="pane-model" style="display:none">
+            <div class="menu-title">模型设置</div>
+            <div class="field">
+              <label class="label">模型选择</label>
+              <input id="modelName" class="input" placeholder="deepseek-chat"/>
+            </div>
+            <div class="field">
+              <label class="label">高级参数：Temperature</label>
+              <input id="modelTemp" class="input" type="number" step="0.1" min="0" max="2" placeholder="0.1"/>
+            </div>
+            <div class="field">
+              <label class="label">高级参数：Max Tokens</label>
+              <input id="modelMaxTokens" class="input" type="number" min="1" max="8192" placeholder="1800"/>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="saveModelBtn">保存模型设置</button>
+            </div>
+            <div class="tip">保存后将用于驱动后端调用 LM。</div>
+          </div>
+          <div id="pane-key" style="display:block">
+            <div class="menu-title">API KEY</div>
+            <div class="field">
+              <label class="label">当前密钥（脱敏显示）</label>
+              <div id="keyMasked" class="masked"></div>
+            </div>
+            <div class="field">
+              <label class="label">API Base</label>
+              <input id="apiBaseInput" class="input" placeholder="https://api.deepseek.com"/>
+            </div>
+            <div class="field">
+              <label class="label">更新密钥</label>
+              <input id="apiKeyInput" class="input" placeholder="sk-..."/>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="saveKeyBtn">保存密钥</button>
+            </div>
+            <div class="tip">仅保存在本机 data/system/settings.json，用于后端调用 LM。</div>
+          </div>
+          <div id="pane-billing" style="display:none">
+            <div class="menu-title">计费中心</div>
+            <div class="tip">占位页（订阅方案、消耗明细）后续完善。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="toast" class="toast" aria-live="polite"></div>
+    <script>
+      const settingsModal = document.getElementById('settingsModal');
+      const settingsFab = document.getElementById('settingsFab');
+      const sidebarSettingsBtn = document.getElementById('sidebarSettingsBtn');
+      const panes = ['account','model','key','billing'];
+      const showPane = (name) => {
+        panes.forEach(p => {
+          document.getElementById('pane-'+p).style.display = (p===name)?'block':'none';
+        });
+      };
+      document.querySelectorAll('.menu-item').forEach(el=>{
+        el.addEventListener('click', ()=> showPane(el.dataset.pane));
+      });
+      // 兼容侧边栏按钮和悬浮球
+      const openSettings = async () => {
+        if (!API_BASE){
+          const ok = await resolveApiBase();
+          if (!ok){ showToast('后端未连接'); return; }
+        }
+        settingsModal.classList.add('open');
+        loadLMSettings();
+        loadAccountSettings();
+      };
+      if(settingsFab) settingsFab.addEventListener('click', openSettings);
+      if(sidebarSettingsBtn) sidebarSettingsBtn.addEventListener('click', openSettings);
+
+      settingsModal.addEventListener('click', (e)=> {
+        if (e.target === settingsModal) settingsModal.classList.remove('open');
+      });
+      function closeSettings(){
+        settingsModal.classList.remove('open');
+        try{
+          const footer = document.getElementById('statusText');
+          if (footer) footer.innerText = '设置已保存';
+          const dot = document.getElementById('statusDot');
+          if (dot) dot.className = 'status-dot ready';
+          showToast('设置已保存');
+        }catch(e){}
+      }
+      function showToast(msg){
+        const t = document.getElementById('toast');
+        if(!t) return;
+        t.textContent = msg || '已保存';
+        t.classList.add('show');
+        setTimeout(()=>{ t.classList.remove('show'); }, 1800);
+      }
+      async function loadAccountSettings(){
+        try{
+          const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/account`);
+          if(!r.ok) return; // 允许404
+          const j = await r.json();
+          document.getElementById('accUsername').value = j.username || '';
+          document.getElementById('accEmail').value = j.email || '';
+          document.getElementById('displayUsername').textContent = j.username || 'User';
+          document.getElementById('displayEmail').textContent = j.email || 'user@example.com';
+        }catch(e){}
+      }
+      async function saveAccount(){
+        const u = document.getElementById('accUsername').value.trim();
+        const e = document.getElementById('accEmail').value.trim();
+        try{
+          const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/account`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username: u, email: e })
+          });
+          const j = await r.json();
+          document.getElementById('displayUsername').textContent = j.username || u;
+          document.getElementById('displayEmail').textContent = j.email || e;
+          closeSettings();
+          showToast('账户信息已保存');
+        }catch(e){ showToast('保存失败'); }
+      }
+      async function loadLMSettings(){
+        try{
+          const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/lm`);
+          const j = await r.json();
+          document.getElementById('keyMasked').textContent = j.api_key_masked || '';
+          document.getElementById('apiBaseInput').value = j.api_base || '';
+          document.getElementById('modelName').value = j.model || '';
+          document.getElementById('modelTemp').value = j.temperature ?? '';
+          document.getElementById('modelMaxTokens').value = j.max_tokens ?? '';
+        }catch(e){}
+      }
+      async function saveKey(){
+        const k = document.getElementById('apiKeyInput').value.trim();
+        const b = document.getElementById('apiBaseInput').value.trim();
+        if(!k) return;
+        const btn = document.getElementById('saveKeyBtn');
+        const old = btn ? btn.innerText : '';
+        if(btn){ btn.disabled = true; btn.innerText = '保存中...'; }
+        try{
+          const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/lm`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ api_key: k, api_base: b || null })
+          });
+          const j = await r.json();
+          document.getElementById('keyMasked').textContent = j.api_key_masked || '';
+          document.getElementById('apiKeyInput').value = '';
+          closeSettings();
+          showToast('API KEY 已保存');
+        }catch(e){
+          showToast('保存失败');
+        } finally {
+          if(btn){ btn.disabled = false; btn.innerText = old || '保存密钥'; }
+        }
+      }
+      async function saveModel(){
+        const name = document.getElementById('modelName').value.trim() || null;
+        const temp = document.getElementById('modelTemp').value.trim();
+        const maxT = document.getElementById('modelMaxTokens').value.trim();
+        const payload = {
+          model: name,
+          temperature: temp ? parseFloat(temp) : null,
+          max_tokens: maxT ? parseInt(maxT, 10) : null
+        };
+        try{
+          const r = await fetch(`${API_BASE.replace(/\/$/,'')}/settings/lm`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+          });
+          await r.json();
+          closeSettings();
+          showToast('模型设置已保存');
+        }catch(e){ showToast('保存失败'); }
+      }
+      document.getElementById('saveKeyBtn').addEventListener('click', saveKey);
+      document.getElementById('saveModelBtn').addEventListener('click', saveModel);
+      document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
+      window.addEventListener('DOMContentLoaded', async ()=>{ await resolveApiBase(); });
+    </script>
+    <style>
+        /* 渐变终端感状态条 */
+        .status-live {
+            background: linear-gradient(90deg, #1e3a8a, #274472, #334155);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: statusPulse 2.2s ease-in-out infinite;
+            filter: saturate(0.85);
+        }
+        .status-text { font-size: 12px; color: #1f2a44; letter-spacing: 0.1px; }
+        @keyframes statusPulse {
+            0% { filter: brightness(0.9); }
+            50% { filter: brightness(1.1); }
+            100% { filter: brightness(0.9); }
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 8px; }
+        .status-dot.ready { background: #22c55e; box-shadow: 0 0 0 1px rgba(255,255,255,0.5), 0 0 10px rgba(34,197,94,0.25); }
+        .status-dot.run { background: #2563eb; box-shadow: 0 0 0 1px rgba(255,255,255,0.5), 0 0 10px rgba(37,99,235,0.22); }
+        .status-dot.err { background: #ef4444; box-shadow: 0 0 0 1px rgba(255,255,255,0.5), 0 0 10px rgba(239,68,68,0.22); }
+        .status-digit { 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; 
+            font-variant-numeric: tabular-nums; 
+            display: inline-block; 
+            will-change: transform, opacity;
+        }
+        .status-digit.flow { 
+            animation: digitFlow 500ms cubic-bezier(.2,.8,.2,1); 
+        }
+        @keyframes digitFlow {
+            0% { transform: translateY(0) scale(1); opacity: .85; }
+            40% { transform: translateY(-2px) scale(1.02); opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: .95; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .panel:hover, .evidence-card:hover, .nav-item:hover, .action-btn:hover, .status-digit.flow { transition: none; animation: none; }
+        }
+    </style>
+    <script>
+        (function(){
+            const root = document.documentElement;
+            let tx = 50, ty = 50, cx = 50, cy = 50;
+            function onMove(e){
+                tx = (e.clientX / window.innerWidth) * 100;
+                ty = (e.clientY / window.innerHeight) * 100;
+            }
+            function loop(){
+                cx += (tx - cx) * 0.12;
+                cy += (ty - cy) * 0.12;
+                root.style.setProperty('--cursor-x', cx + '%');
+                root.style.setProperty('--cursor-y', cy + '%');
+                requestAnimationFrame(loop);
+            }
+            window.addEventListener('mousemove', onMove, { passive: true });
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+</html>
